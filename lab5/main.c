@@ -68,7 +68,9 @@ bool load(list_t ** lst, const char * filename) {
     return !fclose(f);
 }
 
-struct sum_min_max * update_sum_min_max(int a, struct sum_min_max * smm) {
+void * update_sum_min_max(int a, void * fold_data) {
+    struct sum_min_max * smm = fold_data;
+
     smm->sum += a;
 
     if (smm->min > a) {
@@ -113,7 +115,7 @@ int main() {
     list_free(cubes);
     putchar('\n');
 
-    list_foldl(&smm, (void *(*)(int, void*)) update_sum_min_max, list);
+    list_foldl(&smm, update_sum_min_max, list);
     printf("Sum: %ld. Min: %d. Max: %d.\n", smm.sum, smm.min, smm.max);
 
     list_map_mut(abs_int, list);

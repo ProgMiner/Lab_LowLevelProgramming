@@ -105,3 +105,66 @@ void list_add_back(int value, list_t ** list) {
 
     last->next = list_create(value);
 }
+
+void list_foreach(const list_t * list, void (* f)(int)) {
+    __list_foreach (list) {
+        f(list->value);
+    }
+}
+
+list_t * list_map(int (* f)(int), const list_t * list) {
+    list_t * prev_node = NULL;
+    list_t * new_list = NULL;
+    list_t * next_node;
+
+    __list_foreach (list) {
+        next_node = list_create(f(list->value));
+
+        if (prev_node) {
+            prev_node->next = next_node;
+        } else {
+            new_list = next_node;
+        }
+
+        prev_node = next_node;
+    }
+
+    return new_list;
+}
+
+void list_map_mut(int (* f)(int), list_t * list) {
+    __list_foreach (list) {
+        list->value = f(list->value);
+    }
+}
+
+void * list_foldl(void * acc, void * (* f)(int, void *), const list_t * list) {
+    __list_foreach (list) {
+        acc = f(list->value, acc);
+    }
+
+    return acc;
+}
+
+list_t * list_iterate(int value, unsigned int length, int (* f)(int)) {
+    list_t * prev_node;
+    list_t * next_node;
+    list_t * new_list;
+
+    if (!length) {
+        return NULL;
+    }
+
+    new_list = list_create(value);
+    prev_node = new_list;
+
+    while (length-- > 0) {
+        value = f(value);
+
+        next_node = list_create(value);
+        prev_node->next = next_node;
+        prev_node = next_node;
+    }
+
+    return new_list;
+}

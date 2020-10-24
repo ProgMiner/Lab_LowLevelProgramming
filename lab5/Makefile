@@ -7,7 +7,7 @@ LDFLAGS =
 BUILDPATH = build
 SOURCES = main.c linked_list.c
 HEADERS = linked_list.h
-TARGET = lab4
+TARGET = lab5
 
 OBJECTS = $(SOURCES:%.c=$(BUILDPATH)/%.o)
 

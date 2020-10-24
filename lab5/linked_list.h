@@ -27,3 +27,18 @@ void list_add_front(int value, list_t ** list);
 
 /* list_add_back :: Int -> [Int] -> [Int] */
 void list_add_back(int value, list_t ** list);
+
+/* list_foreach :: [Int] -> (Int -> IO ()) -> IO () */
+void list_foreach(const list_t * list, void (* f)(int));
+
+/* list_map :: (Int -> Int) -> [Int] -> [Int] */
+list_t * list_map(int (* f)(int), const list_t * list);
+
+/* list_map_mut :: (Int -> Int) -> State [Int] */
+void list_map_mut(int (* f)(int), list_t * list);
+
+/* list_foldl :: Int -> (Int -> Int -> Int) -> [Int] -> Int */
+void * list_foldl(void * acc, void * (* f)(int, void *), const list_t * list);
+
+/* iterate :: Int -> Int -> (Int -> Int) -> [Int] */
+list_t * list_iterate(int value, unsigned int length, int (* f)(int));
