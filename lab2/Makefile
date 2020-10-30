@@ -17,7 +17,7 @@ OBJECTS = $(SOURCES:%.asm=$(BUILDPATH)/%.o)
 all: build
 
 clean:
-	rm -rf $(BUILDPATH)
+	@rm -rf $(BUILDPATH)
 
 run:
 	"$(TARGET)" $(ARGS)

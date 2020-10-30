@@ -10,10 +10,13 @@ SOURCES = scalar.c primes.c
 OBJECTS = $(SOURCES:%.c=$(BUILDPATH)/%.o)
 TARGETS = $(SOURCES:%.c=%)
 
-.PHONY: all build
+.PHONY: all build clean
 .SUFFIXES:
 
 all: build
+
+clean:
+	@rm $(TARGETS)
 
 build: | $(TARGETS)
 

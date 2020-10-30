@@ -17,8 +17,8 @@ OBJECTS = $(SOURCES:%.c=$(BUILDPATH)/%.o)
 all: build
 
 clean:
-	rm -rf $(BUILDPATH)
-	rm $(TARGET)
+	@rm -rf $(BUILDPATH)
+	@rm $(TARGET)
 
 build: $(TARGET)
 
