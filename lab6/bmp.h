@@ -2,11 +2,18 @@
 
 #include <stdio.h>
 
-#include "image.h"
-
 struct bmp_image;
 
-struct bmp_image * bmp_image_read(FILE * file);
+enum bmp_image_read_result {
+    BMPREAD_BADFILE,
+    BMPREAD_BADSIGN,
+    BMPREAD_BADMETA,
+    BMPREAD_OK
+};
+
+enum bmp_image_read_result
+bmp_image_read(struct bmp_image ** bmp_image, FILE * file);
+
 void bmp_image_free(struct bmp_image * file);
 
-struct image * bmp_image_to_image(struct bmp_image * bmp_image);
+void bmp_image_print(const struct bmp_image * bmp_image, FILE * file);

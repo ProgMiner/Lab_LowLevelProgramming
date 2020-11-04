@@ -5,8 +5,8 @@ CFLAGS = -std=c89 -pedantic-errors -Wall -Werror -g -O0 # -O2
 LDFLAGS = -lm
 
 BUILDPATH = build
-SOURCES = main.c image.c bmp.c
-HEADERS = image.h bmp.h
+SOURCES = main.c args.c bmp.c
+HEADERS = args.h bmp.h
 TARGET = lab6
 
 OBJECTS = $(SOURCES:%.c=$(BUILDPATH)/%.o)

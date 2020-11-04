@@ -1,5 +1,6 @@
 #include "bmp.h"
 
+#include <stdint.h>
 #include <stdlib.h>
 
 struct __attribute__((packed)) bmp_header {
@@ -30,36 +31,48 @@ struct bmp_image {
     struct bmp_pixel * bitmap;
 };
 
-struct bmp_image * bmp_image_read(FILE * file) {
+enum bmp_image_read_result
+bmp_image_read(struct bmp_image ** bmp_image, FILE * file) {
     struct bmp_image * image = malloc(sizeof(struct bmp_image));
     int32_t row, rowOffset;
 
     size_t read_count = fread(&(image->header), sizeof(struct bmp_header), 1, file);
     if (read_count < 1) {
         free(image);
-        return NULL;
+        return BMPREAD_BADFILE;
     }
 
-    if ((image->header.bfType[0] != 'B' || image->header.bfType[1] != 'M')              /* Check file type signature */
-     || (image->header.bfSize != image->header.bfOffBits + image->header.biSizeImage)   /* Check size */
-     || (image->header.biPlanes != 1)                                                   /* Check biPlanes */
-     || (image->header.biBitCount != 24)                                                /* Check pixel bits count, only 24 is supported */
-     || (image->header.biCompression != 0)                                              /* Check biCompression, only 0 is supported */
+    /* Check file type signature */
+    if (image->header.bfType[0] != 'B' || image->header.bfType[1] != 'M') {
+        free(image);
+        return BMPREAD_BADSIGN;
+    }
+
+    if ((image->header.biSizeImage         /* Check size if biSizeImage != 0 */
+     && (image->header.bfSize != image->header.bfOffBits + image->header.biSizeImage))
+     || (image->header.biPlanes != 1)      /* Check biPlanes */
+     || (image->header.biBitCount != 24)   /* Check pixel bits count, only 24 is supported */
+     || (image->header.biCompression != 0) /* Check biCompression, only 0 is supported */
     ) {
         free(image);
-        return NULL;
+        return BMPREAD_BADMETA;
     }
 
     /* Check file size */
-    if (fseek(file, 0L, SEEK_END) || ftell(file) != image->header.bfSize) {
+    if (fseek(file, 0L, SEEK_END)) {
         free(image);
-        return NULL;
+        return BMPREAD_BADFILE;
+    }
+
+    if (ftell(file) != image->header.bfSize) {
+        free(image);
+        return BMPREAD_BADMETA;
     }
 
     /* Go to bitmap */
     if (fseek(file, image->header.bfOffBits, SEEK_SET)) {
         free(image);
-        return NULL;
+        return BMPREAD_BADFILE;
     }
 
     image->bitmap = malloc(sizeof(struct bmp_pixel) * image->header.biWidth * image->header.biHeight);
@@ -70,41 +83,17 @@ struct bmp_image * bmp_image_read(FILE * file) {
 
         if (read_count < image->header.biWidth) {
             bmp_image_free(image);
-            return NULL;
+            return BMPREAD_BADFILE;
         }
 
         if (fseek(file, rowOffset, SEEK_CUR)) {
             bmp_image_free(image);
-            return NULL;
+            return BMPREAD_BADFILE;
         }
     }
 
-    return image;
-}
-
-struct image * bmp_image_to_image(struct bmp_image * bmp_image) {
-    struct image * image;
-    uint64_t x, y, i;
-
-    if (bmp_image == NULL) {
-        return NULL;
-    }
-
-    image = malloc(sizeof(struct image));
-    image->pixels_count = bmp_image->header.biWidth * bmp_image->header.biHeight;
-    image->pixels = malloc(sizeof(struct pixel) * image->pixels_count);
-
-    for (y = 0, i = 0; y < bmp_image->header.biHeight; ++y) {
-        for (x = 0; x < bmp_image->header.biWidth; ++x, ++i) {
-            image->pixels[i].r = bmp_image->bitmap[i].r;
-            image->pixels[i].g = bmp_image->bitmap[i].g;
-            image->pixels[i].b = bmp_image->bitmap[i].b;
-            image->pixels[i].x = x;
-            image->pixels[i].y = y;
-        }
-    }
-
-    return image;
+    *bmp_image = image;
+    return BMPREAD_OK;
 }
 
 void bmp_image_free(struct bmp_image * image) {
@@ -113,3 +102,20 @@ void bmp_image_free(struct bmp_image * image) {
         free(image);
     }
 }
+
+void bmp_image_print(const struct bmp_image * image, FILE * file) {
+    uint32_t x, y, i;
+
+    for (y = 0, i = 0; y < image->header.biHeight; ++y) {
+        for (x = 0; x < image->header.biWidth; ++x, ++i) {
+            fprintf(file, "\x1B[48;2;%d;%d;%dm  \x1B[0m",
+                image->bitmap[i].r,
+                image->bitmap[i].g,
+                image->bitmap[i].b);
+        }
+
+        putc('\n', file);
+    }
+}
+
+/* поворачивание, размытие, сохранение */
