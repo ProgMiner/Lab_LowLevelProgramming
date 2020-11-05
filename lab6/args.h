@@ -12,6 +12,9 @@ struct args {
     bool         output_stdout;   /* Output result to stdout instead of file */
     bool         print_ansi;      /* Do print result as ANSI escape codes instead of BMP */
     bool         print_help;      /* Do print help and quit */
+    bool         do_blur;         /* Do blur after rotation */
+    bool         do_dilate;       /* Do dilate instead of blurring */
+    bool         do_erode;        /* Do erode instead of blurring */
 } args;
 
 bool parse_args(int argc, const char * argv[]);

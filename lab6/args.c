@@ -11,6 +11,9 @@ struct args args = {
     NULL,
     false,
     false,
+    false,
+    false,
+    false,
     false
 };
 
@@ -45,6 +48,20 @@ bool parse_args(int argc, const char * argv[]) {
                         args.print_help = true;
                         return true;
 
+                    case 'b':
+                        args.do_blur = true;
+                        break;
+
+                    case 'd':
+                        args.do_blur = true;
+                        args.do_dilate = true;
+                        break;
+
+                    case 'e':
+                        args.do_blur = true;
+                        args.do_erode = true;
+                        break;
+
                     default:
                         fprintf(stderr, "Warning: skipped unknown option -%c.\n", *currentArg);
                     }
@@ -70,6 +87,14 @@ bool parse_args(int argc, const char * argv[]) {
             } else if (strcmp("help", currentArg) == 0) {
                 args.print_help = true;
                 return true;
+            } else if (strcmp("blur", currentArg) == 0) {
+                args.do_blur = true;
+            } else if (strcmp("dilate", currentArg) == 0) {
+                args.do_blur = true;
+                args.do_dilate = true;
+            } else if (strcmp("erode", currentArg) == 0) {
+                args.do_blur = true;
+                args.do_erode = true;
             } else {
                 fprintf(stderr, "Warning: skipped unknown option --%s.\n", currentArg);
             }

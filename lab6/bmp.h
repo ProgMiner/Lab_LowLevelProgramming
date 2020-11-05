@@ -19,6 +19,10 @@ void bmp_image_free(struct bmp_image * bmp_image);
 
 void bmp_image_rotate(struct bmp_image * bmp_image, double angle);
 
+void bmp_image_blur(struct bmp_image * bmp_image);
+void bmp_image_dilate(struct bmp_image * bmp_image);
+void bmp_image_erode(struct bmp_image * bmp_image);
+
 bool bmp_image_print(const struct bmp_image * bmp_image, FILE * file);
 
 void bmp_image_repair_header(struct bmp_image * bmp_image);

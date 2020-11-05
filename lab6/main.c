@@ -98,7 +98,17 @@ int main(int argc, const char * argv[]) {
     /* bmp_image_print(image, stdout); */
     bmp_image_rotate(image, args.angle * M_PI / 180);
 
-    /* размыть */
+    if (args.do_blur) {
+        /* bmp_image_print(image, stdout); */
+
+        if (args.do_dilate) {
+            bmp_image_dilate(image);
+        } else if (args.do_erode) {
+            bmp_image_erode(image);
+        } else {
+            bmp_image_blur(image);
+        }
+    }
 
     if (args.output_stdout) {
         file = stdout;

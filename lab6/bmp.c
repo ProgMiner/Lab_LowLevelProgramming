@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include <float.h>
 #include <math.h>
 
@@ -219,7 +220,112 @@ void bmp_image_rotate(struct bmp_image * image, double angle) {
     free(pixels);
 }
 
-/* размытие */
+void bmp_image_blur(struct bmp_image * image) {
+    struct bmp_pixel * old_bitmap;
+    uint32_t sum_r, sum_g, sum_b;
+    int8_t kern_x, kern_y;
+    uint32_t x, y, i;
+
+    old_bitmap = malloc(sizeof(struct bmp_pixel) * image->header.biWidth * image->header.biHeight);
+    memcpy(old_bitmap, image->bitmap, sizeof(struct bmp_pixel) * image->header.biWidth * image->header.biHeight);
+
+    for (y = 1; y < image->header.biHeight - 1; ++y) {
+        for (x = 1; x < image->header.biWidth - 1; ++x) {
+            sum_r = sum_g = sum_b = 0;
+
+            for (kern_y = -1; kern_y < 2; ++kern_y) {
+                for (kern_x = -1; kern_x < 2; ++kern_x) {
+                    i = image->header.biWidth * (y + kern_y) + x + kern_x;
+
+                    sum_r += old_bitmap[i].r;
+                    sum_g += old_bitmap[i].g;
+                    sum_b += old_bitmap[i].b;
+                }
+            }
+
+            i = image->header.biWidth * y + x;
+            image->bitmap[i].r = sum_r / 9;
+            image->bitmap[i].g = sum_g / 9;
+            image->bitmap[i].b = sum_b / 9;
+        }
+    }
+
+    free(old_bitmap);
+}
+
+void bmp_image_dilate(struct bmp_image * image) {
+    struct bmp_pixel * old_bitmap;
+    uint8_t max_r, max_g, max_b;
+    int8_t kern_x, kern_y;
+    uint32_t x, y, i;
+
+    old_bitmap = malloc(sizeof(struct bmp_pixel) * image->header.biWidth * image->header.biHeight);
+    memcpy(old_bitmap, image->bitmap, sizeof(struct bmp_pixel) * image->header.biWidth * image->header.biHeight);
+
+    for (y = 1; y < image->header.biHeight - 1; ++y) {
+        for (x = 1; x < image->header.biWidth - 1; ++x) {
+            max_r = max_g = max_b = 0;
+
+            for (kern_y = -1; kern_y < 2; ++kern_y) {
+                for (kern_x = -1; kern_x < 2; ++kern_x) {
+                    i = image->header.biWidth * (y + kern_y) + x + kern_x;
+
+                    if (max_r < old_bitmap[i].r
+                     && max_g < old_bitmap[i].g
+                     && max_b < old_bitmap[i].b) {
+                        max_r = old_bitmap[i].r;
+                        max_g = old_bitmap[i].g;
+                        max_b = old_bitmap[i].b;
+                    }
+                }
+            }
+
+            i = image->header.biWidth * y + x;
+            image->bitmap[i].r = max_r;
+            image->bitmap[i].g = max_g;
+            image->bitmap[i].b = max_b;
+        }
+    }
+
+    free(old_bitmap);
+}
+
+void bmp_image_erode(struct bmp_image * image) {
+    struct bmp_pixel * old_bitmap;
+    uint8_t min_r, min_g, min_b;
+    int8_t kern_x, kern_y;
+    uint32_t x, y, i;
+
+    old_bitmap = malloc(sizeof(struct bmp_pixel) * image->header.biWidth * image->header.biHeight);
+    memcpy(old_bitmap, image->bitmap, sizeof(struct bmp_pixel) * image->header.biWidth * image->header.biHeight);
+
+    for (y = 1; y < image->header.biHeight - 1; ++y) {
+        for (x = 1; x < image->header.biWidth - 1; ++x) {
+            min_r = min_g = min_b = 255;
+
+            for (kern_y = -1; kern_y < 2; ++kern_y) {
+                for (kern_x = -1; kern_x < 2; ++kern_x) {
+                    i = image->header.biWidth * (y + kern_y) + x + kern_x;
+
+                    if (min_r >= old_bitmap[i].r
+                     && min_g >= old_bitmap[i].g
+                     && min_b >= old_bitmap[i].b) {
+                        min_r = old_bitmap[i].r;
+                        min_g = old_bitmap[i].g;
+                        min_b = old_bitmap[i].b;
+                    }
+                }
+            }
+
+            i = image->header.biWidth * y + x;
+            image->bitmap[i].r = min_r;
+            image->bitmap[i].g = min_g;
+            image->bitmap[i].b = min_b;
+        }
+    }
+
+    free(old_bitmap);
+}
 
 bool bmp_image_print(const struct bmp_image * image, FILE * file) {
     uint32_t x, y, i;
