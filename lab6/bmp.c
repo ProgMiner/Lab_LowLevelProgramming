@@ -105,25 +105,18 @@ void bmp_image_free(struct bmp_image * image) {
     }
 }
 
-double round(double a) {
-    uint64_t int_a = a;
-    double tail = a - int_a;
-
-    if (tail < 0.5 && tail > -0.5) {
-        return int_a;
-    }
-
-    return int_a < 0 ? int_a + 1 : int_a - 1;
+double min(double a, double b) {
+    return a < b ? a : b;
 }
 
 void bmp_image_rotate(struct bmp_image * image, double angle) {
-    double x_center, y_center,
+    double center_x, center_y, alpha,
            min_x = DBL_MAX,
            min_y = DBL_MAX,
            max_x = -DBL_MAX,
            max_y = -DBL_MAX;
 
-    uint32_t x, y, i, j, pixels_count;
+    uint32_t x, y, i, j, k, base_x, base_y, pixels_count;
 
     struct {
         double x, y;
@@ -133,13 +126,13 @@ void bmp_image_rotate(struct bmp_image * image, double angle) {
     pixels_count = image->header.biWidth * image->header.biHeight;
     pixels = malloc(sizeof(*pixels) * pixels_count);
 
-    x_center = ((double) image->header.biWidth) / 2;
-    y_center = ((double) image->header.biHeight) / 2;
+    center_x = ((double) image->header.biWidth) / 2;
+    center_y = ((double) image->header.biHeight) / 2;
 
     for (y = 0, i = 0; y < image->header.biHeight; ++y) {
         for (x = 0; x < image->header.biWidth; ++x, ++i) {
-            pixels[i].x = x_center + (x - x_center) * cos(angle) - (y - y_center) * sin(angle);
-            pixels[i].y = y_center + (x - x_center) * sin(angle) + (y - y_center) * cos(angle);
+            pixels[i].x = center_x + (x - center_x) * cos(angle) - (y - center_y) * sin(angle);
+            pixels[i].y = center_y + (x - center_x) * sin(angle) + (y - center_y) * cos(angle);
             pixels[i].pixel = image->bitmap[i];
 
             if (min_x > pixels[i].x) {
@@ -161,7 +154,7 @@ void bmp_image_rotate(struct bmp_image * image, double angle) {
     }
 
     image->header.biWidth = ceil(max_x - min_x + 1);
-    image->header.biHeight = ceil(max_x - min_x + 1);
+    image->header.biHeight = ceil(max_y - min_y + 1);
     free(image->bitmap);
 
     image->bitmap = calloc(image->header.biWidth * image->header.biHeight, sizeof(struct bmp_pixel));
@@ -170,15 +163,56 @@ void bmp_image_rotate(struct bmp_image * image, double angle) {
         pixels[i].x -= min_x;
         pixels[i].y -= min_y;
 
-        x = round(pixels[i].x);
-        y = round(pixels[i].y);
+        base_x = ceil(pixels[i].x);
+        base_y = ceil(pixels[i].y);
 
-        /* TODO blend nearly pixels */
+        /* 0 - center
+         * 1 - top
+         * 2 - right
+         * 3 - bottom
+         * 4 - left
+         */
+        for (k = 0; k < 5; ++k) {
+            switch (k) {
+            case 0:
+                x = base_x;
+                y = base_y;
+                alpha = (1 - abs(pixels[i].x - x)) * (1 - abs(pixels[i].y - y));
+                break;
 
-        if (x >= 0 && x < image->header.biWidth
-         && y >= 0 && y < image->header.biHeight) {
-            j = y * image->header.biWidth + x;
-            image->bitmap[j] = pixels[i].pixel;
+            case 1:
+                x = base_x;
+                y = base_y - 1;
+                alpha = (1 - abs(x - pixels[i].x)) * (1 - min(pixels[i].y - y, 1));
+                break;
+
+            case 2:
+                x = base_x + 1;
+                y = base_y;
+                alpha = (1 - min(x - pixels[i].x, 1)) * (1 - abs(y - pixels[i].y));
+                break;
+
+            case 3:
+                x = base_x;
+                y = base_y + 1;
+                alpha = (1 - abs(x - pixels[i].x)) * (1 - min(y - pixels[i].y, 1));
+                break;
+
+            case 4:
+                x = base_x - 1;
+                y = base_y;
+                alpha = (1 - min(pixels[i].x - x, 1)) * (1 - abs(y - pixels[i].y));
+                break;
+            }
+
+            if (x >= 0 && x < image->header.biWidth
+             && y >= 0 && y < image->header.biHeight) {
+                j = y * image->header.biWidth + x;
+
+                image->bitmap[j].r += (pixels[i].pixel.r - image->bitmap[j].r) * alpha;
+                image->bitmap[j].g += (pixels[i].pixel.g - image->bitmap[j].g) * alpha;
+                image->bitmap[j].b += (pixels[i].pixel.b - image->bitmap[j].b) * alpha;
+            }
         }
     }
 
