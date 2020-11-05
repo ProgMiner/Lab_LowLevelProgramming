@@ -78,11 +78,11 @@ int main(int argc, const char * argv[]) {
         break;
 
     case BMPREAD_BADFILE:
-        fputs("Error: bad BMP file.", stderr);
+        fputs("Error: bad BMP file.\n", stderr);
         return RETCOD_FILE;
 
     default:
-        fputs("Error: bad BMP file contents.", stderr);
+        fputs("Error: bad BMP file contents.\n", stderr);
         return RETCOD_BMPR;
     }
 
@@ -136,9 +136,17 @@ int main(int argc, const char * argv[]) {
     }
 
     if (args.print_ansi) {
-        bmp_image_print(image, file);
+        if (!bmp_image_print(image, file)) {
+            perror("Error");
+            return RETCOD_FILE;
+        }
     } else {
-        /* сохранить */
+        bmp_image_repair_header(image);
+
+        if (!bmp_image_write(image, file)) {
+            perror("Error");
+            return RETCOD_FILE;
+        }
     }
 
     if (file != stdout && fclose(file)) {

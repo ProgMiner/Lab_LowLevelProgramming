@@ -103,19 +103,68 @@ void bmp_image_free(struct bmp_image * image) {
     }
 }
 
-void bmp_image_print(const struct bmp_image * image, FILE * file) {
+/* поворачивание, размытие */
+
+bool bmp_image_print(const struct bmp_image * image, FILE * file) {
     uint32_t x, y, i;
 
     for (y = 0, i = 0; y < image->header.biHeight; ++y) {
         for (x = 0; x < image->header.biWidth; ++x, ++i) {
-            fprintf(file, "\x1B[48;2;%d;%d;%dm  \x1B[0m",
-                image->bitmap[i].r,
-                image->bitmap[i].g,
-                image->bitmap[i].b);
+            if (fprintf(file, "\x1B[48;2;%d;%d;%dm  \x1B[0m",
+                image->bitmap[i].r, image->bitmap[i].g, image->bitmap[i].b) < 1) {
+                return false;
+            }
         }
 
-        putc('\n', file);
+        if (putc('\n', file) == EOF) {
+            return false;
+        }
     }
+
+    return true;
 }
 
-/* поворачивание, размытие, сохранение */
+void bmp_image_repair_header(struct bmp_image * image) {
+
+    /* Repair signature */
+    image->header.bfType[0] = 'B';
+    image->header.bfType[1] = 'M';
+
+    /* Repair offset */
+    image->header.bfOffBits = sizeof(struct bmp_header);
+
+    /* Repair common parameters */
+    image->header.biSize = 40;
+    image->header.biPlanes = 1;
+    image->header.biBitCount = 24;
+    image->header.biCompression = 0;
+
+    /* Calc size image */
+    image->header.biSizeImage = image->header.biHeight * (image->header.biWidth * sizeof(struct bmp_pixel) + image->header.biWidth % 4);
+
+    /* Calc file size */
+    image->header.bfSize = image->header.bfOffBits + image->header.biSizeImage;
+}
+
+bool bmp_image_write(const struct bmp_image * image, FILE * file) {
+    static uint8_t offsetBuffer[] = { 0, 0, 0 };
+    int32_t row, rowOffset;
+
+    if (fwrite(&(image->header), sizeof(struct bmp_header), 1, file) < 1) {
+        return false;
+    }
+
+    rowOffset = image->header.biWidth % 4;
+    for (row = image->header.biHeight - 1; row >= 0; --row) {
+        if (fwrite(image->bitmap + row * image->header.biWidth,
+            sizeof(struct bmp_pixel), image->header.biWidth, file) < image->header.biWidth) {
+            return false;
+        }
+
+        if (fwrite(offsetBuffer, 1, rowOffset, file) < rowOffset) {
+            return false;
+        }
+    }
+
+    return true;
+}
