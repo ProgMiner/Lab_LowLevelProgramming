@@ -15,7 +15,9 @@ enum bmp_image_read_result {
 enum bmp_image_read_result
 bmp_image_read(struct bmp_image ** bmp_image, FILE * file);
 
-void bmp_image_free(struct bmp_image * file);
+void bmp_image_free(struct bmp_image * bmp_image);
+
+void bmp_image_rotate(struct bmp_image * bmp_image, double angle);
 
 bool bmp_image_print(const struct bmp_image * bmp_image, FILE * file);
 

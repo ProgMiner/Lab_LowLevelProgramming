@@ -7,6 +7,10 @@
 #include "bmp.h"
 #include "args.h"
 
+#ifndef M_PI
+#define M_PI (3.14159265358979323846)
+#endif
+
 #define RETCOD_OK   0
 #define RETCOD_ARGP 1
 #define RETCOD_FILE 2
@@ -91,7 +95,10 @@ int main(int argc, const char * argv[]) {
         return RETCOD_FILE;
     }
 
-    /* повернуть, размыть */
+    /* bmp_image_print(image, stdout); */
+    bmp_image_rotate(image, args.angle * M_PI / 180);
+
+    /* размыть */
 
     if (args.output_stdout) {
         file = stdout;

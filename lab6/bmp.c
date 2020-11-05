@@ -2,6 +2,8 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include <float.h>
+#include <math.h>
 
 struct __attribute__((packed)) bmp_header {
     char     bfType[2];
@@ -103,7 +105,87 @@ void bmp_image_free(struct bmp_image * image) {
     }
 }
 
-/* поворачивание, размытие */
+double round(double a) {
+    uint64_t int_a = a;
+    double tail = a - int_a;
+
+    if (tail < 0.5 && tail > -0.5) {
+        return int_a;
+    }
+
+    return int_a < 0 ? int_a + 1 : int_a - 1;
+}
+
+void bmp_image_rotate(struct bmp_image * image, double angle) {
+    double x_center, y_center,
+           min_x = DBL_MAX,
+           min_y = DBL_MAX,
+           max_x = -DBL_MAX,
+           max_y = -DBL_MAX;
+
+    uint32_t x, y, i, j, pixels_count;
+
+    struct {
+        double x, y;
+        struct bmp_pixel pixel;
+    } * pixels;
+
+    pixels_count = image->header.biWidth * image->header.biHeight;
+    pixels = malloc(sizeof(*pixels) * pixels_count);
+
+    x_center = ((double) image->header.biWidth) / 2;
+    y_center = ((double) image->header.biHeight) / 2;
+
+    for (y = 0, i = 0; y < image->header.biHeight; ++y) {
+        for (x = 0; x < image->header.biWidth; ++x, ++i) {
+            pixels[i].x = x_center + (x - x_center) * cos(angle) - (y - y_center) * sin(angle);
+            pixels[i].y = y_center + (x - x_center) * sin(angle) + (y - y_center) * cos(angle);
+            pixels[i].pixel = image->bitmap[i];
+
+            if (min_x > pixels[i].x) {
+                min_x = pixels[i].x;
+            }
+
+            if (min_y > pixels[i].y) {
+                min_y = pixels[i].y;
+            }
+
+            if (max_x < pixels[i].x) {
+                max_x = pixels[i].x;
+            }
+
+            if (max_y < pixels[i].y) {
+                max_y = pixels[i].y;
+            }
+        }
+    }
+
+    image->header.biWidth = ceil(max_x - min_x + 1);
+    image->header.biHeight = ceil(max_x - min_x + 1);
+    free(image->bitmap);
+
+    image->bitmap = calloc(image->header.biWidth * image->header.biHeight, sizeof(struct bmp_pixel));
+
+    for (i = 0; i < pixels_count; ++i) {
+        pixels[i].x -= min_x;
+        pixels[i].y -= min_y;
+
+        x = round(pixels[i].x);
+        y = round(pixels[i].y);
+
+        /* TODO blend nearly pixels */
+
+        if (x >= 0 && x < image->header.biWidth
+         && y >= 0 && y < image->header.biHeight) {
+            j = y * image->header.biWidth + x;
+            image->bitmap[j] = pixels[i].pixel;
+        }
+    }
+
+    free(pixels);
+}
+
+/* размытие */
 
 bool bmp_image_print(const struct bmp_image * image, FILE * file) {
     uint32_t x, y, i;
