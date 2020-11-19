@@ -2,25 +2,39 @@
 CC = gcc
 LD = gcc
 CFLAGS = -std=c89 -pedantic-errors -Wall -Werror -g -O0 # -O2
-LDFLAGS = -lm
+LDFLAGS = -ldl -rdynamic
 
 BUILDPATH = build
-SOURCES = main.c args.c bmp.c
-HEADERS = args.h bmp.h
+SOURCES = main.c ast.c value.c parser.c lexer.c interpreter.c image.c util.c stdlib.c bmp.c
+HEADERS = ast.h value.h parser.h interpreter.h image.h util.h bmp.h
 TARGET = lab6
 
 OBJECTS = $(SOURCES:%.c=$(BUILDPATH)/%.o)
 
-.PHONY: all build clean
+.PHONY: all build clean modules
 .SUFFIXES:
 
-all: build
+all: build modules
 
 clean:
-	@rm -rf $(BUILDPATH)
-	@rm $(TARGET)
+	@+cd modules; make clean
+	@rm -vrf $(BUILDPATH) 2> /dev/null; true
+	@rm -v parser.h parser.c lexer.c $(TARGET) 2> /dev/null; true
 
 build: $(TARGET)
+
+modules:
+	@+cd modules; make
+
+%.lex:
+
+%.y:
+
+parser.h parser.c: parser.y
+	bison --defines=parser.h -o parser.c parser.y
+
+lexer.c: lexer.lex parser.h
+	flex -o lexer.c lexer.lex
 
 %.c:
 

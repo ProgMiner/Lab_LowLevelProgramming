@@ -1,29 +1,39 @@
 #pragma once
 
-#include <stdbool.h>
 #include <stdio.h>
 
-struct bmp_image;
+#include "image.h"
 
-enum bmp_image_read_result {
-    BMPREAD_BADFILE,
-    BMPREAD_BADSIGN,
-    BMPREAD_BADMETA,
-    BMPREAD_OK
+struct __attribute__((packed)) bmp_header {
+    char     bfType[2];
+    uint32_t bfSize;
+    uint32_t bfReserved;
+    uint32_t bfOffBits;
+
+    uint32_t biSize;
+    int32_t  biWidth;
+    int32_t  biHeight;
+    uint16_t biPlanes;
+    uint16_t biBitCount;
+    uint32_t biCompression;
+    uint32_t biSizeImage;
+    int32_t  biXPelsPerMeter;
+    int32_t  biYPelsPerMeter;
+    uint32_t biClrUsed;
+    uint32_t biClrImportant;
 };
 
-enum bmp_image_read_result
-bmp_image_read(struct bmp_image ** bmp_image, FILE * file);
+struct bmp_pixel;
 
-void bmp_image_free(struct bmp_image * bmp_image);
+struct bmp_image {
+    struct bmp_header header;
+    struct bmp_pixel * bitmap;
+};
 
-void bmp_image_rotate(struct bmp_image * bmp_image, double angle);
+void bmp_image_discard(struct bmp_image bmp_image);
 
-void bmp_image_blur(struct bmp_image * bmp_image);
-void bmp_image_dilate(struct bmp_image * bmp_image);
-void bmp_image_erode(struct bmp_image * bmp_image);
+struct image bmp_image_to_image(const struct bmp_image);
+void bmp_image_replace(struct bmp_image * bmp_image, const struct image image);
 
-bool bmp_image_print(const struct bmp_image * bmp_image, FILE * file);
-
-void bmp_image_repair_header(struct bmp_image * bmp_image);
-bool bmp_image_write(const struct bmp_image * bmp_image, FILE * file);
+const char * bmp_image_read(struct bmp_image * bmp_image, FILE * file);
+const char * bmp_image_write(const struct bmp_image bmp_image, FILE * file);

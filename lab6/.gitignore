@@ -1,2 +1,5 @@
-build
-lab6
+/build
+/parser.h
+/parser.c
+/lexer.c
+/lab6

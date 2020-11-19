@@ -1,175 +1,286 @@
 #include <stdbool.h>
+#include <string.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <stdint.h>
+#include <getopt.h>
 #include <stdio.h>
 
+#include "util.h"
+#include "parser.h"
+#include "interpreter.h"
 #include "bmp.h"
-#include "args.h"
 
-#ifndef M_PI
-#define M_PI (3.14159265358979323846)
-#endif
+typedef struct yy_buffer_state * YY_BUFFER_STATE;
 
-#define RETCOD_OK   0
-#define RETCOD_ARGP 1
-#define RETCOD_FILE 2
-#define RETCOD_BMPR 3
+YY_BUFFER_STATE yy_create_buffer(FILE * file, int size);
+void yy_switch_to_buffer(YY_BUFFER_STATE new_buffer);
+YY_BUFFER_STATE yy_scan_string(const char * str);
+void yy_delete_buffer(YY_BUFFER_STATE buffer);
 
-#define HELP_MSG (\
-    "Usage: %s [options] <filename> <angle>\n"\
-    "  - filename - path to input file\n"\
-    "  - angle - rotation angle (in degrees, real)\n"\
-    "  - options - some of following options:\n"\
-    "    - -o/--output <filename> - path to output file (default equal to input file)\n"\
-    "    - -O/--stdout - output to stdout instead of any file\n"\
-    "    - -a/--ascii - output as ANSI escape codes instead of BMP\n"\
-    "    - -h/--help - print this help message and exit\n"\
-)
+struct args {
+    const char * script; /* script filename */
+    const char * input; /* input BMP filename */
+    const char * output; /* output BMP filename */
 
-int8_t yesno() {
-    int c = getchar(), nc;
+    bool code; /* assume that script is code instead of filename */
+    char * modules_prefix; /* optional modules prefix */
+    bool help; /* print help and exit */
+};
 
-    while (c != '\n' && c != EOF) {
-        nc = getchar();
+struct args args_create() {
+    struct args args = { NULL, "-", "-", false, NULL, false };
+    return args;
+}
 
-        switch (nc) {
-        case '\n':
-        case EOF:
+void args_discard(struct args args) {
+    free(args.modules_prefix);
+}
+
+bool parse_args(struct args * args, int argc, char ** argv) {
+    static const char * const usage = ""
+        "Usage: %s [-c] [-p <modules_prefix>] <script> [<input>] [<output>]\n"
+        "Arguments:\n"
+        "  - script - script filename\n"
+        "  - input - input BMP filename or stdin if is - (default is -)\n"
+        "  - output - output BMP filename or stdout if is - (default is -)\n"
+        "Options:\n"
+        "  - -c - assume that script is code instead of filename\n"
+        "  - -p <modules_prefix> - set prefix for module files lookup "
+        "(for example: if is ./, then all modules will be searching only in the working directory)\n";
+
+    uint32_t i;
+    int opt;
+
+    while ((opt = getopt(argc, argv, "cp:h")) != -1) {
+        switch (opt) {
+        case 'c':
+            args->code = true;
+            break;
+
+        case 'p':
+            args->modules_prefix = strdup(optarg);
+            break;
+
+        case 'h':
+            args->help = true;
             break;
 
         default:
+            fprintf(stderr, usage, argv[0]);
+            return false;
+        }
+    }
+
+    if (args->help) {
+        printf(usage, argv[0]);
+        return true;
+    }
+
+    for (i = optind; i < argc; ++i) {
+        switch (i - optind) {
+        case 0:
+            args->script = argv[i];
+            continue;
+
+        case 1:
+            args->input = argv[i];
+            continue;
+
+        case 2:
+            args->output = argv[i];
             continue;
         }
 
+        fputs("There are some extra arguments on the tail, skipping.\n", stderr);
         break;
     }
 
-    switch (c) {
-    case 'y':
-        return 1;
-
-    case 'n':
-    case EOF:
-        return 0;
-
-    default:
-        return -1;
+    if (i - optind < 1) {
+        fputs("Script is not specified.\n", stderr);
+        fprintf(stderr, usage, argv[0]);
+        return false;
     }
+
+    return true;
 }
 
-int main(int argc, const char * argv[]) {
-    struct bmp_image * image;
+bool parse_script(struct ast_script ** result, const char * script, bool code) {
+    YY_BUFFER_STATE buffer_state;
+    FILE * script_file = NULL;
+    char * error = NULL;
+
+    if (code) {
+        buffer_state = yy_scan_string(script);
+    } else {
+        if (!(script_file = fopen(script, "r"))) {
+            perror("Script file opening failed");
+            return false;
+        }
+
+        buffer_state = yy_create_buffer(script_file, 16384);
+        yy_switch_to_buffer(buffer_state);
+    }
+
+    if (yyparse(result, &error)) {
+        fprintf(stderr, "Parsing failed: %s.\n", error);
+        return false;
+    }
+
+    yy_delete_buffer(buffer_state);
+
+    if (script_file) {
+        if (fclose(script_file)) {
+            perror("Script file closing failed");
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool init_interpreter(struct interpreter * interpreter, const struct ast_script * script, const char * modules_prefix) {
+    const char * error;
+
+    *interpreter = interpreter_create(script);
+
+    if (modules_prefix) {
+        interpreter->modules_prefix = modules_prefix;
+    }
+
+    if ((error = interpreter_process_script(interpreter))) {
+        fprintf(stderr, "Script preprocessing failed: %s.\n", error);
+        interpreter_discard(*interpreter);
+        return false;
+    }
+
+    return true;
+}
+
+bool load_image(struct bmp_image * image, const char * filename) {
+    bool stdinFilename = filename[0] == '-' && filename[1] == '\0';
+    const char * error;
     FILE * file;
 
-    if (!parse_args(argc, argv) && !args.print_help) {
-        fprintf(stderr, HELP_MSG, args.executable);
-        return RETCOD_ARGP;
-    }
-
-    if (args.print_help) {
-        printf(HELP_MSG, args.executable);
-        return RETCOD_OK;
-    }
-
-    if (!(file = fopen(args.filename, "rb"))) {
-        perror("Error");
-        return RETCOD_FILE;
-    }
-
-    switch (bmp_image_read(&image, file)) {
-    case BMPREAD_OK:
-        break;
-
-    case BMPREAD_BADFILE:
-        fputs("Error: bad BMP file.\n", stderr);
-        return RETCOD_FILE;
-
-    default:
-        fputs("Error: bad BMP file contents.\n", stderr);
-        return RETCOD_BMPR;
-    }
-
-    if (fclose(file)) {
-        perror("Error");
-        return RETCOD_FILE;
-    }
-
-    /* bmp_image_print(image, stdout); */
-    bmp_image_rotate(image, args.angle * M_PI / 180);
-
-    if (args.do_blur) {
-        /* bmp_image_print(image, stdout); */
-
-        if (args.do_dilate) {
-            bmp_image_dilate(image);
-        } else if (args.do_erode) {
-            bmp_image_erode(image);
-        } else {
-            bmp_image_blur(image);
+    if (stdinFilename) {
+        file = stdin;
+    } else {
+        if (!(file = fopen(filename, "rb"))) {
+            perror("Input file opening failed");
+            return false;
         }
     }
 
-    if (args.output_stdout) {
+    if ((error = bmp_image_read(image, file))) {
+        fprintf(stderr, "Input file reading failed: %s.\n", error);
+        return false;
+    }
+
+    if (stdinFilename) {
+        if (fclose(file)) {
+            perror("Input file closing failed");
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool run_interpreter(struct interpreter interpreter, struct image * image) {
+    const char * error;
+
+    if ((error = interpreter_run(interpreter, image))) {
+        fprintf(stderr, "Interpretation failed: %s.\n", error);
+        return false;
+    }
+
+    return true;
+}
+
+bool save_image(struct bmp_image image, const char * filename) {
+    bool stdoutFilename = filename[0] == '-' && filename[1] == '\0';
+    const char * error;
+    FILE * file;
+
+    if (stdoutFilename) {
         file = stdout;
-    } else if (args.output_filename) {
-        while (!access(args.output_filename, F_OK)) {
-            printf("File %s is already exists, do you want to overwrite it? y/n: ", args.output_filename);
-
-            switch (yesno()) {
-            case -1:
-                continue;
-
-            case 0:
-                return RETCOD_FILE;
-            }
-
-            break;
-        }
-
-        if (!(file = fopen(args.output_filename, "wb"))) {
-            perror("Error");
-            return RETCOD_FILE;
-        }
     } else {
-        while (args.print_ansi) {
-            fputs("Are you sure you want to overwrite the BMP file with ANSI? y/n: ", stdout);
-
-            switch (yesno()) {
-            case -1:
-                continue;
-
-            case 0:
-                return RETCOD_FILE;
-            }
-
-            break;
-        }
-
-        if (!(file = fopen(args.filename, "wb"))) {
-            perror("Error");
-            return RETCOD_FILE;
+        if (!(file = fopen(filename, "wb"))) {
+            perror("Output file opening failed");
+            return false;
         }
     }
 
-    if (args.print_ansi) {
-        if (!bmp_image_print(image, file)) {
-            perror("Error");
-            return RETCOD_FILE;
-        }
-    } else {
-        bmp_image_repair_header(image);
+    if ((error = bmp_image_write(image, file))) {
+        fprintf(stderr, "Output file writing failed: %s.\n", error);
+        return false;
+    }
 
-        if (!bmp_image_write(image, file)) {
-            perror("Error");
-            return RETCOD_FILE;
+    if (stdoutFilename) {
+        if (fclose(file)) {
+            perror("Output file closing failed");
+            return false;
         }
     }
 
-    if (file != stdout && fclose(file)) {
-        perror("Error");
-        return RETCOD_FILE;
+    return true;
+}
+
+int main(int argc, char ** argv) {
+    struct args args = args_create();
+    struct ast_script * script;
+    struct interpreter interpreter;
+    struct bmp_image bmp_image;
+    struct image image;
+
+    if (!parse_args(&args, argc, argv)) {
+        return 1;
     }
 
-    return RETCOD_OK;
+    if (args.help) {
+        return 0;
+    }
+
+    if (!parse_script(&script, args.script, args.code)) {
+        args_discard(args);
+        return 2;
+    }
+
+    if (!init_interpreter(&interpreter, script, args.modules_prefix)) {
+        ast_script_delete(script);
+        args_discard(args);
+        return 3;
+    }
+
+    if (!load_image(&bmp_image, args.input)) {
+        interpreter_discard(interpreter);
+        ast_script_delete(script);
+        args_discard(args);
+        return 4;
+    }
+
+    image = bmp_image_to_image(bmp_image);
+
+    if (!run_interpreter(interpreter, &image)) {
+        image_discard(image);
+        bmp_image_discard(bmp_image);
+        interpreter_discard(interpreter);
+        ast_script_delete(script);
+        args_discard(args);
+        return 5;
+    }
+
+    interpreter_discard(interpreter);
+    ast_script_delete(script);
+
+    bmp_image_replace(&bmp_image, image);
+    image_discard(image);
+
+    if (!save_image(bmp_image, args.output)) {
+        bmp_image_discard(bmp_image);
+        args_discard(args);
+        return 6;
+    }
+
+    bmp_image_discard(bmp_image);
+    args_discard(args);
+    return 0;
 }
