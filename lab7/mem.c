@@ -130,8 +130,14 @@ void * malloc(size_t query) {
 }
 
 void free(void * mem) {
-    struct mem * heap = (struct mem *) ((uint8_t *) mem - sizeof(struct mem));
+    struct mem * heap;
 
+    if (!mem) {
+        return;
+    }
+
+    heap = (struct mem *) ((uint8_t *) mem - sizeof(struct mem));
     heap->is_free = true;
+
     heap_blocks_merge(heap);
 }
