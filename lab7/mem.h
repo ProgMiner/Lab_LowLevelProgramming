@@ -13,3 +13,6 @@ struct mem {
 
 void * malloc(size_t query);
 void free(void * mem);
+
+bool set_page_size(size_t new_size);
+void reset_page_size();

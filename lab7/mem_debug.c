@@ -30,6 +30,8 @@ int main() {
     uint32_t ** mems;
     uint32_t i;
 
+    set_page_size(8192);
+
     memalloc_debug_struct_info(stderr, (const struct mem *) ((uint8_t *) mem1 - sizeof(struct mem)));
     mem = malloc(sizeof(uint32_t));
 
@@ -39,6 +41,8 @@ int main() {
     mems = malloc(sizeof(uint32_t *) * *mem);
 
     memalloc_debug_struct_info(stderr, (const struct mem *) ((uint8_t *) mem1 - sizeof(struct mem)));
+
+    reset_page_size();
 
     for (i = 0; i < *mem; ++i) {
         mems[i] = malloc(sizeof(uint32_t));

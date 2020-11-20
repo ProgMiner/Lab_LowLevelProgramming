@@ -2,9 +2,10 @@
 
 #include <stdint.h>
 #include <sys/mman.h>
+#include <sys/resource.h>
 
 #define HEAP_START ((void *) 0x04040000)
-#define HEAP_SIZE ((size_t) 4 * 1024)
+#define DEFAULT_HEAP_SIZE ((size_t) 4 * 1024)
 
 #define BLOCK_MIN_SIZE ((size_t) 128 - sizeof(struct mem))
 
@@ -12,8 +13,10 @@
 # define MAP_ANONYMOUS 0x20
 #endif
 
+size_t heap_size = DEFAULT_HEAP_SIZE;
+
 void * heap_mmap(void * addr, bool * strict) {
-    void * heap = mmap(addr, HEAP_SIZE, PROT_READ | PROT_WRITE,
+    void * heap = mmap(addr, heap_size, PROT_READ | PROT_WRITE,
         MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
 
     if (strict) {
@@ -24,7 +27,7 @@ void * heap_mmap(void * addr, bool * strict) {
         return heap;
     }
 
-    return mmap(NULL, HEAP_SIZE, PROT_READ | PROT_WRITE,
+    return mmap(NULL, heap_size, PROT_READ | PROT_WRITE,
         MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 }
 
@@ -45,7 +48,7 @@ void * heap_init(void * addr) {
         return NULL;
     }
 
-    *heap = mem_create(HEAP_SIZE - sizeof(struct mem));
+    *heap = mem_create(heap_size - sizeof(struct mem));
     return heap;
 }
 
@@ -101,9 +104,9 @@ void * malloc(size_t query) {
             }
 
             if (mmap_strict) {
-                current->capacity += HEAP_SIZE;
+                current->capacity += heap_size;
             } else {
-                *new = mem_create(HEAP_SIZE - sizeof(struct mem));
+                *new = mem_create(heap_size - sizeof(struct mem));
                 current->next = new;
                 current = new;
             }
@@ -140,4 +143,23 @@ void free(void * mem) {
     heap->is_free = true;
 
     heap_blocks_merge(heap);
+}
+
+bool set_page_size(size_t new_size) {
+    struct rlimit max_size;
+
+    if (getrlimit(RLIMIT_DATA, &max_size) != 0) {
+        return false;
+    }
+
+    if (new_size < sizeof(struct mem) + BLOCK_MIN_SIZE || new_size > max_size.rlim_cur) {
+        return false;
+    }
+
+    heap_size = new_size;
+    return true;
+}
+
+void reset_page_size() {
+    heap_size = DEFAULT_HEAP_SIZE;
 }
