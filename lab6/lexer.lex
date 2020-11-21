@@ -1,4 +1,4 @@
-%option noinput nounput
+%option noyywrap noinput nounput
 
 %{
 #include <string.h>

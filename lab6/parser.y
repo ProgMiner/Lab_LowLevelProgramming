@@ -9,10 +9,6 @@
 
 int yylex(void);
 
-int yywrap(void) {
-    return 1;
-}
-
 void yyerror(struct ast_script ** result, char ** error, const char * str);
 %}
 
