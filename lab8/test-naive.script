@@ -1,0 +1,5 @@
+#!../lab6/lab6 -p./
+# vim: syntax=python
+
+
+sepia.sepia_naive();
