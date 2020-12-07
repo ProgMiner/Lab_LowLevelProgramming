@@ -1,5 +1,19 @@
 ; vim: syntax=nasm
 
+%macro save_rsp 0
+    push rbp
+    mov rbp, rsp
+%endmacro
+
+%macro restore_rsp 0
+    mov rsp, rbp
+    pop rbp
+%endmacro
+
+%macro align_stack 0
+    and rsp, 0xfffffffffffffff0
+%endmacro
+
 %define c_1_1 0.393
 %define c_1_2 0.769
 %define c_1_3 0.189
@@ -18,7 +32,7 @@ section .text
 
 ; process 4 pixels with sepia filter via SSE
 ; rdi - rgb    three 12-dim vector of dwords
-; rsi - result 12-dim vector of bytes
+; rsi - result aligned 16-dim vector of bytes
 do_sepia:
     ; populate registers
     cvtdq2ps xmm0, [rdi]
@@ -59,22 +73,8 @@ do_sepia:
 
     packusdw xmm0, xmm1
     packusdw xmm2, xmm3
-
     packuswb xmm0, xmm2
-
-    push rbp
-    mov rbp, rsp
-
-    sub rsp, 16
-    and rsp, 0xfffffffffffffff0
-    movdqa [rsp], xmm0
-
-    pop qword [rsi]
-
-    mov eax, [rsp]
-    mov [rsi + 8], eax
-    mov rsp, rbp
-    pop rbp
+    movdqa [rsi], xmm0
     ret
 
 section .rodata
@@ -91,13 +91,19 @@ section .text
 ; rdi - cluster, pointer to array of pixels
 ; rsi - positive size of cluster
 process_cluster:
-    lea r8, [rel .r]
-    lea r9, [rel .g]
-    lea r10, [rel .b]
+
+    save_rsp
+    sub rsp, 16
+    align_stack
+
     push rdi
     push rsi
 
-    mov rcx, rsi
+    sub rsp, 144
+    mov r8, rsp
+    lea r9, [rsp + 48]
+    lea r10, [rsp + 96]
+
 .populate_loop:
     movzx eax, byte [rdi]
     mov [r8], eax
@@ -120,33 +126,25 @@ process_cluster:
     add r10, 12
     inc rdi
 
-    loop .populate_loop
+    dec rsi
+    jnz .populate_loop
 
-    lea rdi, [rel .r]
-    lea rsi, [rel .result]
+    mov rdi, rsp
+    lea rsi, [rsp + 160]
     call do_sepia
 
+    add rsp, 144
     mov rdx, [rsp]
     shl rdx, 1
     add rdx, [rsp]
     add rsp, 8
 
     pop rdi
-    lea rsi, [rel .result]
+    mov rsi, rsp
     call memcpy wrt ..plt
+
+    restore_rsp
     ret
-
-section .bss
-align 16
-
-.r:
-    resd 12
-.g:
-    resd 12
-.b:
-    resd 12
-.result:
-    resb 12
 
 section .text
 
